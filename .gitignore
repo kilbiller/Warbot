@@ -4,3 +4,7 @@
 *.jar
 *.war
 *.ear
+
+#Perso
+lib/cachedir/
+.DS_Store
