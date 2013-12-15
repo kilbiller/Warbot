@@ -7,125 +7,113 @@ import edu.turtlekit2.warbot.message.WarMessage;
 import edu.turtlekit2.warbot.percepts.Percept;
 import edu.turtlekit2.warbot.waritems.WarFood;
 
-public class BrainExplorer extends WarBrain{
-
-	Percept base = null;
-	Percept food = null;
+public class BrainExplorer extends WarBrain {
 	
-	public BrainExplorer(){
-		
-	}
+	enum State {RECHERCHE,RAPPORTE}
+	enum Type {CUEILLEUR,ESPION}
+	
+	State currentState = State.RECHERCHE;
+	Type currentType = Type.CUEILLEUR;
+	String order;
+	
+	List<Percept> percepts;
+	List<WarMessage> messages;
+	
+	public BrainExplorer(){}
 
 	@Override
 	public String action() {
-		// TODO Auto-generated method stub
-		/*List<Percept> percepts = getPercepts();
-		
+			
+		percepts = getPercepts();
+		messages = getMessage();
+			
+		//Par défaut, l'explorer bouge au hazard
+		while(isBlocked()){
+			setRandomHeading();
+		}
+		order = "move";
+			
+		//Selon son etat, l'explorer fera des actions différentes
+		switch(currentState){
+			//Recherche la nourriture la plus proche et va la chercher
+			case RECHERCHE:
+				//TODO : Séparer les explorer en cueilleurs et en espions
+				findEnnemyBase();
+				Percept closestFood = findClosestFood();
+				if(closestFood != null)
+				{
+					//TODO : Corriger un bug qui bloque l'exporer quand il est trop pres du mur et d'une nourriture (rare)
+					setHeading(closestFood.getAngle());
+					if(closestFood.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+						order = "take";
+					 
+					if(sizeBag() == 3)
+						currentState = State.RAPPORTE;
+				}
+	         break;
+	         //Rapporte la nourriture quand le sac est plein (3 food)
+			 case RAPPORTE:
+				 //Demande a la base son emplacement
+				 WarMessage baseLocation = getBaseLocation();
+				 
+				 if(baseLocation != null)
+				 {
+					 setHeading(baseLocation.getAngle());
+				
+					if(baseLocation.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+					{
+						setAgentToGive(baseLocation.getSender());
+						order = "give";
+						
+						if(sizeBag() == 0)
+							currentState = State.RECHERCHE;
+					}
+					
+				 }
+			 break;
+			}
+			
+			return order;
+	}
+	
+	private void findEnnemyBase() {
 		if(percepts.size() > 0)
-		{
 			for(Percept p : percepts)
-			{
+				if(p.getType().equals("WarBase") && p.getTeam() != getTeam())
+					broadcastMessage("WarRocketLauncher","ennemyBaseLocation",null);
+	}
+
+	private Percept findClosestFood()
+	{
+		Percept food = null;
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
 				if(p.getType().equals("WarFood"))
 				{
-					food = p;
-					broadcastMessage("WarBase", "J'ai touvé de la bouffe !!", null);
-				}
-				if(p.getType().equals("WarBase") && p.getTeam() == getTeam())
-				{
-					base = p;
-				}
-			}
-			
-			if(!fullBag())
-			{
-				if(food != null)
-				{
-					if(food.getDistance() < WarFood.MAX_DISTANCE_TAKE)
-					{
-						return "take";
-					}
+					if(food == null)
+						food = p;
 					else
-					{
-						setHeading(food.getAngle());
-					}
+						if(p.getDistance() < food.getDistance())
+							food = p;
 				}
-			}
-			else
-			{
-				if(base != null)
-					setHeading(base.getAngle());
-			}
-		}*/
 		
-		if(isBlocked())
-				setRandomHeading();
-		
-		return "move";
+		return food;
 	}
 	
-	/*public BrainExplorer(){
+	private WarMessage getBaseLocation()
+	{
+		WarMessage baseLocation = null;
 		
-	}
-	
-	@Override
-	public String action() {
-		List<Percept> liste = getPercepts();
-		List<WarMessage> listeM = getMessage();
+		broadcastMessage("WarBase","baseLocation",null);
 		
-		if(liste.size()>0 && !fullBag()){
-			Percept bestFood = null;
-			
-			for(Percept p : liste){
-				if(p.getType().equals("WarFood")){
-					if(bestFood == null){
-						bestFood = p;
-					}else if(p.getDistance() < bestFood.getDistance()){
-						bestFood = p;
-					}
-				}
-			}
-			
-			if(bestFood != null && bestFood.getDistance() < WarFood.MAX_DISTANCE_TAKE){
-				return "take";
-			}else if(bestFood != null && bestFood.getType().equals("WarFood")){
-				setHeading(bestFood.getAngle());
-			}else{
-				while(isBlocked()){
-					setRandomHeading();
-				}
-			}
-		}else if(liste.size()>0 && fullBag()){
-			Percept bestFood = null;
-			
-			for(Percept p : liste){
-				if(p.getType().equals("WarBase") && p.getDistance() < WarFood.MAX_DISTANCE_TAKE){
-					if(bestFood == null){
-						bestFood = p;
-					}else if(p.getDistance() < bestFood.getDistance()){
-						bestFood = p;
-					}
-				}
-			}
-			
-			if(bestFood != null && bestFood.getDistance() < WarFood.MAX_DISTANCE_TAKE){
-				setAgentToGive(bestFood.getId());
-				return "give";
-			}else if(bestFood != null && bestFood.getType().equals("WarFood")){
-				setHeading(bestFood.getAngle());
-			}else{
-				while(isBlocked()){
-					setRandomHeading();
-				}
-			}
-		}else if(fullBag() && listeM.size()==0){
-			broadcastMessage("WarBase", "where", null);
-		}else if(fullBag() && listeM.size()>0){
-			setHeading(listeM.get(0).getAngle());
-		}else{
-			while(isBlocked()){
-				setRandomHeading();
-			}
+		//Reponse
+		if(messages.size() > 0)
+		{
+			for(WarMessage m : messages )
+				if(m.getMessage() == "baseLocation")
+						baseLocation = m;
 		}
-		return "move";
-	}*/
+		
+		return baseLocation;
+	}
 }
