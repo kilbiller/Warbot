@@ -27,12 +27,12 @@ public class BrainExplorer extends WarBrain {
 		percepts = getPercepts();
 		messages = getMessage();
 		
-		//Si la base veut un espion on tranforme l'exporer en espion
+		//Si la base veut un espion on tranforme l'explorer en espion
 		for(WarMessage m : messages)
 			if(m.getMessage() == "devientEspion")
 				currentType = Type.ESPION;
 		
-		//Declare son existence a la base
+		//Déclare son type à la base
 		if(currentType == Type.ESPION)
 			broadcastMessage("WarBase","espion",null);
 		else

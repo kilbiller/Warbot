@@ -23,7 +23,9 @@ public class BrainBase extends WarBrain{
 		order = "idle";
 		
 		//Recupère le nombre d'espions en jeu
-		int nbEspion = getEspionNumber();
+		int nbEspion = getTypeNumber("espion");
+		int nbDefenseur = getTypeNumber("defenseur");
+		boolean baseUnderAttack = isAttacked();
 		
 		for(WarMessage m : messages){
 			//Si on demande les coordonnées de la base on les envoient au demandeur
@@ -36,21 +38,23 @@ public class BrainBase extends WarBrain{
 				sendMessage(m.getSender(), "devientEspion", null);
 				nbEspion++;
 			}
+			
+			//TODO: Faire que les 3 PLUS PROCHE de la base deviennent defenseurs
+			//Si la base est attaqué et qu'il n'y a pas assez de defenseurs, on en fait
+			if(baseUnderAttack && nbDefenseur < 3 && m.getMessage() == "attaquant")
+			{
+				sendMessage(m.getSender(), "devientDefenseur", null);
+				nbDefenseur++;
+			}
 		}
+		
+		if(!baseUnderAttack)
+			broadcastMessage("WarRocketLauncher","devientAttaquant",null);
 		
 		if(getEnergy() > 12000){
 			setNextAgentCreate("Explorer");
 			order = "create";
 		}
-		
-		//TODO : Protection de la base
-		//Pour protéger le base il faudrait faire une transaction:
-		//base : help!
-		//warlaunchers : nous sommes dispo
-		//base : je prend les 2/3 tanks les plus proches
-		//warlaunchers choisi : ok on arrive
-		//warlaunchers pas choisi : on continue notre vie
-		//Si par la suite la base est safe, retourne les tanks en mode defense en mode attaque
 		
 		//Mange si nourriture disponible
 		if(!emptyBag()) order = "eat";
@@ -58,13 +62,23 @@ public class BrainBase extends WarBrain{
 		return order;
 	}
 	
-	private int getEspionNumber()
+	private int getTypeNumber(String type)
 	{
 		int nb = 0;
 		for(WarMessage m : messages)
-			if(m.getMessage() == "espion")
+			if(m.getMessage() == type)
 				nb++;
 		
 		return nb;
+	}
+	
+	private boolean isAttacked()
+	{
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
+				if(p.getType().equals("WarRocketLauncher") && p.getTeam() != getTeam())
+					return true;
+		
+		return false;
 	}
 }
