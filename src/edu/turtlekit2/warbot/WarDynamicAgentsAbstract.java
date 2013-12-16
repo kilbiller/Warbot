@@ -129,7 +129,7 @@ public abstract class WarDynamicAgentsAbstract extends WarAgentsAbstract{
 	protected void eatFood(){
 		if(_bag > 0){
 			removeFood();
-			_energy+=200;
+			_energy+=WarFood.ENERGY;
 		}
 	}
 	
@@ -330,7 +330,7 @@ public abstract class WarDynamicAgentsAbstract extends WarAgentsAbstract{
 
 		angle = (int) Math.toDegrees(radian);
 
-		return angle;
+		return angle%360;
 	}
 
 	/**

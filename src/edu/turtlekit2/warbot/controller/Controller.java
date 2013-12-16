@@ -64,8 +64,8 @@ public class Controller extends Turtle {
     protected List<String> 							_listRole = null;
     private String									_victoryTeam = "";
     private JFrame									_resultDialog;
-    public String									version="1.1";
-    public String									date="18/11/2013";
+    public String									version="1.2";
+    public String									date="15/12/2013";
 
     private static WarLauncher wl;
 

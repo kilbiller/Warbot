@@ -25,6 +25,7 @@ public class Percept {
 		_team = team;
 		_type = new String(type);
 		_heading = heading;
+		_energy = energy;
 	}
 
 	/**

@@ -89,7 +89,7 @@ public class WarRocketLauncher extends WarDynamicAgentsAbstract {
 	    	_energy -= COST_SHOOT;
 	    	Turtle tmp;
 	    	//System.out.println("1");
-			tmp = new WarRocket(_turretHead, getTeam());
+			tmp = new WarRocket(_turretHead, getTeam(),this);
 			//System.out.println("2");
 			SingletonAffichage.getInstance(mySelf()).initRefresh(createTurtle(tmp));
 			//System.out.println("3");
