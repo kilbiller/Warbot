@@ -26,7 +26,18 @@ public class BrainExplorer extends WarBrain {
 			
 		percepts = getPercepts();
 		messages = getMessage();
-			
+		
+		//Si la base veut un espion on tranforme l'exporer en espion
+		for(WarMessage m : messages)
+			if(m.getMessage() == "devientEspion")
+				currentType = Type.ESPION;
+		
+		//Declare son existence a la base
+		if(currentType == Type.ESPION)
+			broadcastMessage("WarBase","espion",null);
+		else
+			broadcastMessage("WarBase","cueilleur",null);
+		
 		//Par défaut, l'explorer bouge au hazard
 		while(isBlocked()){
 			setRandomHeading();
@@ -37,16 +48,14 @@ public class BrainExplorer extends WarBrain {
 		switch(currentState){
 			//Recherche la nourriture la plus proche et va la chercher
 			case RECHERCHE:
-				//TODO : Séparer les explorer en cueilleurs et en espions
-				findEnnemyBase();
-				Percept closestFood = findClosestFood();
-				if(closestFood != null)
+				if(currentType == Type.ESPION)
+					findEnnemyBase();
+				if(currentType == Type.CUEILLEUR)
 				{
-					//TODO : Corriger un bug qui bloque l'exporer quand il est trop pres du mur et d'une nourriture (rare)
-					setHeading(closestFood.getAngle());
-					if(closestFood.getDistance() < WarFood.MAX_DISTANCE_TAKE)
-						order = "take";
-					 
+					findEnnemyBase();
+					Percept closestFood = findClosestFood();
+					getFood(closestFood);
+					
 					if(sizeBag() == 3)
 						currentState = State.RAPPORTE;
 				}
@@ -55,20 +64,16 @@ public class BrainExplorer extends WarBrain {
 			 case RAPPORTE:
 				 //Demande a la base son emplacement
 				 WarMessage baseLocation = getBaseLocation();
-				 
 				 if(baseLocation != null)
 				 {
-					 setHeading(baseLocation.getAngle());
-				
+					setHeading(baseLocation.getAngle());
 					if(baseLocation.getDistance() < WarFood.MAX_DISTANCE_TAKE)
 					{
 						setAgentToGive(baseLocation.getSender());
 						order = "give";
-						
 						if(sizeBag() == 0)
 							currentState = State.RECHERCHE;
 					}
-					
 				 }
 			 break;
 			}
@@ -100,19 +105,27 @@ public class BrainExplorer extends WarBrain {
 		return food;
 	}
 	
+	private void getFood(Percept food)
+	{
+		if(food != null)
+		{
+			//TODO : Corriger un bug qui bloque l'exporer quand il est trop pres du mur et d'une nourriture (rare)
+			setHeading(food.getAngle());
+			if(food.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+				order = "take";
+		}
+	}
+	
 	private WarMessage getBaseLocation()
 	{
 		WarMessage baseLocation = null;
-		
 		broadcastMessage("WarBase","baseLocation",null);
 		
 		//Reponse
 		if(messages.size() > 0)
-		{
 			for(WarMessage m : messages )
 				if(m.getMessage() == "baseLocation")
 						baseLocation = m;
-		}
 		
 		return baseLocation;
 	}

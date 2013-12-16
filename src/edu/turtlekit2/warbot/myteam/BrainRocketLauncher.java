@@ -1,10 +1,8 @@
 package edu.turtlekit2.warbot.myteam;
 
 import java.util.List;
-
 import edu.turtlekit2.warbot.WarBrain;
 import edu.turtlekit2.warbot.message.WarMessage;
-import edu.turtlekit2.warbot.myteam.BrainExplorer.Type;
 import edu.turtlekit2.warbot.percepts.Percept;
 
 public class BrainRocketLauncher extends WarBrain{
