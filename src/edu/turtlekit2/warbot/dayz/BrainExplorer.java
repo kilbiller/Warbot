@@ -1,58 +1,139 @@
 package edu.turtlekit2.warbot.dayz;
+
 import java.util.List;
-import java.util.Scanner;
 
 import edu.turtlekit2.warbot.WarBrain;
 import edu.turtlekit2.warbot.message.WarMessage;
+import edu.turtlekit2.warbot.percepts.Percept;
+import edu.turtlekit2.warbot.waritems.WarFood;
 
-/**
- * Classe BrainExplorer
- * @author Florian
- *
- */
-public class BrainExplorer extends WarBrain{
+public class BrainExplorer extends WarBrain {
 	
-	private Etat etatcourant;
-	private String typeExplorer = "cueilleur";
+	enum State {RECHERCHE,RAPPORTE}
+	enum Type {CUEILLEUR,ESPION}
 	
-	public BrainExplorer(){
-	}
+	State currentState = State.RECHERCHE;
+	Type currentType = Type.CUEILLEUR;
+	String order;
 	
+	List<Percept> percepts;
+	List<WarMessage> messages;
+	
+	public BrainExplorer(){}
+
 	@Override
 	public String action() {
-		broadcastMessage("WarBase", "present", null);
+			
+		percepts = getPercepts();
+		messages = getMessage();
 		
-		etatcourant = new Rechercher(this);
-
-		while (!etatcourant.etatFinal())
-			etatcourant.exec(this);
+		//Si la base veut un espion on tranforme l'explorer en espion
+		for(WarMessage m : messages)
+			if(m.getMessage() == "devientEspion")
+				currentType = Type.ESPION;
 		
-		List<WarMessage> liste = getMessage();
-
-		for(WarMessage wm : liste)
-		{
-			if(wm.getMessage().equals("espion"))
-				typeExplorer = "espion";
-			else if(wm.getMessage().equals("cueilleur"))
-				typeExplorer = "cueilleur";
+		//Déclare son type à la base
+		if(currentType == Type.ESPION)
+			broadcastMessage("WarBase","espion",null);
+		else
+			broadcastMessage("WarBase","cueilleur",null);
+		
+		//Par défaut, l'explorer avance
+		order = "move";
+			
+		//Selon son etat, l'explorer fera des actions différentes
+		switch(currentState){
+			//Les cueilleurs recherchent la nourriture la plus proche et vont la chercher
+			//Les espions recherchent la base ennemie
+			case RECHERCHE:
+				if(currentType == Type.ESPION)
+					findEnnemyBase();
+				if(currentType == Type.CUEILLEUR)
+				{
+					findEnnemyBase();
+					takeFood(closestFood());
+					if(sizeBag() == 3)
+						currentState = State.RAPPORTE;
+				}
+	         break;
+	         //Rapporte la nourriture quand le sac est plein (3 food)
+			 case RAPPORTE:
+				 giveFood(getBaseLocation());
+				 if(sizeBag() == 0)
+						currentState = State.RECHERCHE;
+			 break;
+			}
+		
+		while(isBlocked()){
+			setRandomHeading();
 		}
+			
+		return order;
+	}
+	
+	private boolean findEnnemyBase() {
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
+				if(p.getType().equals("WarBase") && p.getTeam() != getTeam())
+				{
+					broadcastMessage("WarRocketLauncher","ennemyBaseLocation",null);
+					setHeading(p.getAngle());
+					return true;
+				}
 		
-		if(etatcourant instanceof Rapporter)
-			return "give";
-		else if(etatcourant instanceof TakeFood){
-			return "take";}
-		else 
-			return "move";
+		return false;
+	}
 
+	private Percept closestFood()
+	{
+		Percept food = null;
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
+				if(p.getType().equals("WarFood"))
+				{
+					if(food == null)
+						food = p;
+					else
+						if(p.getDistance() < food.getDistance())
+							food = p;
+				}
+		
+		return food;
 	}
 	
-	void changerEtat(Etat etat)
+	private void takeFood(Percept food)
 	{
-		etatcourant = etat;
+		if(food != null)
+		{
+			setHeading(food.getAngle());
+			if(food.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+				order = "take";
+		}
 	}
 	
-	public String getJob()
+	private void giveFood(WarMessage location)
 	{
-		return typeExplorer;
+		if(location != null)
+		 {
+			setHeading(location.getAngle());
+			if(location.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+			{
+				setAgentToGive(location.getSender());
+				order = "give";
+			}
+		 }
+	}
+	
+	private WarMessage getBaseLocation()
+	{
+		WarMessage baseLocation = null;
+		broadcastMessage("WarBase","baseLocation",null);
+		
+		if(messages.size() > 0)
+			for(WarMessage m : messages )
+				if(m.getMessage() == "baseLocation")
+						baseLocation = m;
+		
+		return baseLocation;
 	}
 }

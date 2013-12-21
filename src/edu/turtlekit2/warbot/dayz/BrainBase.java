@@ -8,58 +8,87 @@ import edu.turtlekit2.warbot.percepts.Percept;
 
 public class BrainBase extends WarBrain{
 	
-	private int nbExplorer;
-
-	public BrainBase(){
-	}
+	List<Percept> percepts;
+	List<WarMessage> messages;
+	String order;
+	
+	public BrainBase(){}
 
 	@Override
 	public String action() {
-		nbExplorer = 0;
-		if(!emptyBag()){
-			return "eat";
-		}
-
-		List<WarMessage> liste = getMessage();
+		percepts = getPercepts();
+		messages = getMessage();
 		
-		for(WarMessage m : liste){
-			if(m.getMessage().equals("present"))
+		//Action par défaut
+		order = "idle";
+		
+		//Recupère le nombre de chaque unité allié en jeu
+		int nbEspion = getTypeNumber("espion");
+		int nbCueilleur = getTypeNumber("cueilleur");
+		int nbDefenseur = getTypeNumber("defenseur");
+		int nbAttaquant = getTypeNumber("attaquant");
+		boolean baseUnderAttack = isAttacked();
+		
+		for(WarMessage m : messages){
+			//Si on demande les coordonnées de la base on les envoient au demandeur
+			if(m.getMessage() == "baseLocation")
+				reply(m, "baseLocation", null);
+			
+			//Si il n'y a pas assez d'espions, on en fait
+			if(nbEspion < 2 && m.getMessage() == "cueilleur")
 			{
-				if((nbExplorer % 2) == 0)
-				{
-					reply(m, "espion", null);
-				}else
-				{
-					reply(m, "cueilleur", null);
-				}
-				nbExplorer = nbExplorer +1;
-			}else
+				reply(m, "devientEspion", null);
+				nbCueilleur--;
+				nbEspion++;
+			}
+			
+			//Maintien un ratio de 2 attaquant pour 3 defenseur
+			if( ((float)nbAttaquant/(float)nbDefenseur < 2.0f/3.0f) && m.getMessage() == "defenseur")
 			{
-				reply(m, "ici", null);
+				reply(m, "devientAttaquant", null);
+				nbDefenseur--;
+				nbAttaquant++;
 			}
 		}
+		
+		if(baseUnderAttack && (nbAttaquant + nbDefenseur) > 0)
+			broadcastMessage("WarRocketLauncher","devientDefenseur",null);
 		
 		if(getEnergy() > 12000){
+			//Par défaut,on crée un explorer
 			setNextAgentCreate("Explorer");
-			return "create";
+			
+			//Si il y assez d'explorer OU que la base est attaquée OU qu'il n'y a plus assez de RocketLauncher
+			//on crée un Launcher
+			if((nbEspion + nbCueilleur) > 7 || baseUnderAttack || (nbAttaquant + nbDefenseur) < 2)
+				setNextAgentCreate("RocketLauncher");
+			
+			order = "create";
 		}
 		
-		List<Percept> listeP = getPercepts();
-		boolean ennemy = false;
+		//Mange si nourriture disponible
+		if(!emptyBag()) order = "eat";
 		
-		for(Percept p : listeP)
-		{
-			if((p.getTeam() != getTeam()) && (p.getType().equals("WarRocketLauncher")))
-			{
-				ennemy = true;
-			}
-		}
+		return order;
+	}
+	
+	private int getTypeNumber(String type)
+	{
+		int nb = 0;
+		for(WarMessage m : messages)
+			if(m.getMessage() == type)
+				nb++;
 		
-		if(ennemy == true)
-		{
-			broadcastMessage("WarRocketLauncher", "ennemy", null);
-		}
+		return nb;
+	}
+	
+	private boolean isAttacked()
+	{
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
+				if(p.getType().equals("WarRocketLauncher") && p.getTeam() != getTeam())
+					return true;
 		
-		return "action";
+		return false;
 	}
 }

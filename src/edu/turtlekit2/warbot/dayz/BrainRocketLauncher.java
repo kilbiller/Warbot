@@ -9,98 +9,162 @@ import edu.turtlekit2.warbot.waritems.WarFood;
 
 public class BrainRocketLauncher extends WarBrain{
 	
-	public BrainRocketLauncher(){
-		
-	}
+	enum State {ATTAQUEBASE,DEFENDBASE}
+	enum Type {ATTAQUANT,DEFENSEUR}
+	
+	State currentState = State.DEFENDBASE;
+	Type currentType = Type.DEFENSEUR;
+	String order;
+	
+	List<Percept> percepts;
+	List<WarMessage> messages;
+	
+	public BrainRocketLauncher(){}
 	
 	@Override
 	public String action() {
-		//Si un missile n'est pas chargé, on vérifie si il y a encore des missiles
-		if(!isReloaded()){
-			if(!isReloading()){
-				return "reload";
+		
+		percepts = getPercepts();
+		messages = getMessage();
+		
+		//Si la base veut un defenseur on tranforme le WarRocketLauncher en defanseur
+		for(WarMessage m : messages)
+		{
+			if(m.getMessage() == "devientDefenseur")
+			{
+				currentType = Type.DEFENSEUR;
+				currentState = State.DEFENDBASE;
+			}
+			if(m.getMessage() == "devientAttaquant")
+			{
+				currentType = Type.ATTAQUANT;
+				currentState = State.ATTAQUEBASE;
 			}
 		}
 		
-		//On récupère la liste des agents autour
-		List<Percept> listeP = getPercepts();
-		//On récupère la liste des messages envoyés à cette agent
-		List<WarMessage> listeM = getMessage();
+		//Déclare son type à la base
+		if(currentType == Type.ATTAQUANT)
+			broadcastMessage("WarBase","attaquant",null);
+		else
+			broadcastMessage("WarBase","defenseur",null);
 		
-		//On initialise la recherche d'agent
-		Percept bestPercept = null;
+		//Par défaut, le WarLauncher avance
+		order = "move";
 		
-		//Si il n'y a pas de message
-		if(listeM.size() == 0){
-			for(Percept p : listeP){
-				//Si l'agent est la base ennemie, on attaque
-				if(p.getType().equals("WarBase") && !p.getTeam().equals(getTeam())){
-					bestPercept = p;
-				}
-			}
-			
-			//Si il y a une base ennemie
-			if(bestPercept != null){
-				//On envoie un message a tous les Launcher pour attaquer
-				broadcastMessage("WarRocketLauncher", "base", null);
-				setAngleTurret(bestPercept.getAngle());
-				return "fire";
-			}else{
-				//Si l'agent est bloqué
-				while(isBlocked()){
-					setRandomHeading();
-				}
-				return "move";
-			}
-		}else{
-			//Si il y a un message
-			for(Percept p : listeP){
-				if(p.getType().equals("WarBase") && !p.getTeam().equals(getTeam())){
-					bestPercept = p;
-				}
-			}
-			
-			if(bestPercept != null){
-				broadcastMessage("WarRocketLauncher", "base", null);
-				setAngleTurret(bestPercept.getAngle());
-				return "fire";
-			}else if(listeM.size()>0){
-				//On vérifie si il y a un message provenant de la base signifiant qu'il y a des ennemies
-				boolean attackBase = false;				
-				boolean ennemyBase = false;
-
-				for(WarMessage tmp : listeM)
-				{
-					if(tmp.toString() == "ennemy")
-					{
-						if(tmp.getDistance() < WarFood.MAX_DISTANCE_TAKE)
-						{
-							attackBase = true;
-							setHeading(tmp.getAngle());
-						}
-					}else
-					{
-						if(tmp.toString() == "baseEnnemy")
-						{
-							if(attackBase != true && tmp.getDistance() < WarFood.MAX_DISTANCE_TAKE)
-							{
-								ennemyBase = true;
-								setHeading(tmp.getAngle());
-							}
-						}
-						
-					}
-				}
-				
-				if(attackBase == false && ennemyBase == false)
-				{
-					WarMessage tmp = listeM.get(0);
-					reply(tmp, "j'arrive", null);
-					setHeading(tmp.getAngle());
-				}
-			}
+		switch(currentState){
+		case ATTAQUEBASE:
+			attackEnnemyBase();
+		break;
+		case DEFENDBASE:
+			defendBase();
+		break;
 		}
 		
-		return "move";
+		//Recharge si besoin
+		if(!isReloaded())
+			if(!isReloading())
+				order = "reload";
+		
+		//Va chercher de la nourriture si plus d'energie
+		if(getEnergy() < 500)
+			takeFood(closestFood());
+		 
+		//Mange si nourriture disponible
+		if(!emptyBag()) order = "eat";
+		
+		while(isBlocked()){
+			setRandomHeading();
+		}
+		
+		return order;
 	}
+	
+	private void attackEnnemyBase()
+	{
+		//Se dirige vers un allié proche de la base ennemie
+		if(messages.size() > 0)
+			for(WarMessage m : messages)
+			{
+				if(m.getMessage() == "ennemyBaseLocation")
+					setHeading(m.getAngle());
+			}
+		
+		//Puis cherche la base par lui même
+		if(percepts.size() > 0)
+			for(Percept p : percepts)
+				if(p.getType().equals("WarBase") && p.getTeam() != getTeam())
+				{
+					broadcastMessage("WarRocketLauncher","ennemyBaseLocation",null);
+					setAngleTurret(p.getAngle());
+					order = "fire";
+				}
+				else //Si la base n'a pas été trouvée attaque les tanks a vue
+                {
+					if(p.getType().equals("WarRocketLauncher") && p.getTeam() != getTeam())
+                    {
+						setAngleTurret(p.getAngle());
+                        order = "fire";
+                    }
+                }
+	}
+	
+	private WarMessage getBaseLocation()
+	{
+		WarMessage baseLocation = null;
+		broadcastMessage("WarBase","baseLocation",null);
+		
+		if(messages.size() > 0)
+			for(WarMessage m : messages )
+				if(m.getMessage() == "baseLocation")
+						baseLocation = m;
+		
+		return baseLocation;
+	}
+	
+	private void defendBase()
+	{
+		WarMessage base = getBaseLocation();
+		if(base != null)
+		{
+			setHeading(base.getAngle());
+			if(base.getDistance() < 100)
+			{
+				if(percepts.size() > 0)
+					for(Percept p : percepts)
+						if(p.getType().equals("WarRocketLauncher") && p.getTeam() != getTeam())
+						{
+							setHeading(p.getAngle());
+							setAngleTurret(p.getAngle());
+							order = "fire";
+						}
+			}
+		}
+	}
+	
+	private Percept closestFood()
+    {
+            Percept food = null;
+            if(percepts.size() > 0)
+                    for(Percept p : percepts)
+                            if(p.getType().equals("WarFood"))
+                            {
+                                    if(food == null)
+                                            food = p;
+                                    else
+                                            if(p.getDistance() < food.getDistance())
+                                                    food = p;
+                            }
+            
+            return food;
+    }
+    
+    private void takeFood(Percept food)
+    {
+            if(food != null)
+            {
+                    setHeading(food.getAngle());
+                    if(food.getDistance() < WarFood.MAX_DISTANCE_TAKE)
+                            order = "take";
+            }
+    }
 }
